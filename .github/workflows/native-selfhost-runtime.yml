@@ -92,6 +92,41 @@ jobs:
       - name: Enforce native benchmark policy
         if: runner.os == 'Linux'
         run: node --test tests/native_benchmark_policy.test.mjs
+      - name: Check Noqeri-written native backend sources
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build-native/noqeri check Compiler/selfhost/native_x64.noqeri --unsafe
+          ./build-native/noqeri check Compiler/selfhost/native_driver.noqeri --unsafe
+      - name: Verify fully native self-host chain
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_DIR="$PWD/build-full-native" \
+          NOQERI_SEED_COMPILER="$PWD/build-native/noqeri" \
+          NOQERI_NQRI_RUNTIME="$PWD/build-native/noqeri-nqri" \
+          CXX=c++ \
+          sh ./scripts/bootstrap-native.sh
+          grep -qx 'execution_model=native-aot' build-full-native/native-selfhost-proof.txt
+          grep -qx 'native_codegen=true' build-full-native/native-selfhost-proof.txt
+          grep -qx 'native_selfhost=true' build-full-native/native-selfhost-proof.txt
+          grep -qx 'stage2_stage3_byte_equal=true' build-full-native/native-selfhost-proof.txt
+          grep -qx 'stage3_stage4_byte_equal=true' build-full-native/native-selfhost-proof.txt
+          grep -qx 'release_needs_cpp_codegen=false' build-full-native/native-selfhost-proof.txt
+      - name: Upload native self-host proof
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-selfhost-proof-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            build-full-native/native-selfhost-proof.txt
+            build-full-native/noqeri-native-stage2.s
+            build-full-native/noqeri-native-stage3.s
+            build-full-native/noqeri-native-stage4.s
       - name: Verify representative standalone native AOT workloads
         if: runner.os == 'Linux'
         shell: bash

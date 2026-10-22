@@ -1,0 +1,31 @@
+module noqeri.compiler.selfhost.native_driver
+import "pipeline.noqeri"
+import "native_x64.noqeri"
+import "targets.noqeri"
+import "ast.noqeri"
+import "nir.noqeri"
+
+export function stage2CompileToNativeAssembly(source: []u8, target: int, debug: bool, unsafeAllowed: bool, out: []u8): isize {
+    if target != nqTargetLinuxX64() { return nqNativeX64Unsupported() }
+    let nodes: [NqAstNode; 131072]
+    let instructions: [NqNirInstruction; 262144]
+    let functions: [NqNirFunction; 8192]
+    let result: NqCompileResult
+    let status: isize = nqPipelineCompileToNir(source, target, debug, unsafeAllowed, slice(nodes), slice(instructions), slice(functions), &result)
+    if status < 0 as isize { return status }
+    return nqNativeX64WriteAssembly(source, slice(instructions, result.instructionCount), slice(functions, result.functionCount), out)
+}
+
+export function stage2CompileNativeBuffer(sourcePtr: *u8, sourceLen: usize, target: int, outPtr: *u8, outLen: usize): isize {
+    if sourcePtr == null || outPtr == null { return nqNativeX64Invalid() }
+    let source: []u8 = slice(sourcePtr, sourceLen)
+    let output: []u8 = slice(outPtr, outLen)
+    return stage2CompileToNativeAssembly(source, target, false, true, output)
+}
+
+export function stage2NativeCheckBuffer(sourcePtr: *u8, sourceLen: usize, target: int): isize {
+    if sourcePtr == null { return nqNativeX64Invalid() }
+    return nqPipelineCompileCheck(slice(sourcePtr, sourceLen), target, true)
+}
+
+export function stage2NativeBackendTarget(): int { return nqTargetLinuxX64() }
